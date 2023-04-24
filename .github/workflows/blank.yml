@@ -1,0 +1,66 @@
+# This is a basic workflow to help you get started with Actions
+
+name: build-tmux
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the "main" branch
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - run: docker build -t builder .
+      - run: |
+          wget https://github.com/tmux/tmux/releases/download/3.3a/tmux-3.3a.tar.gz
+          tar -zxf tmux-*.tar.gz
+          mv tmux-* tmux
+      - run: docker run -v $PWD/tmux:/tmux -w /tmux --name=builder builder sh -c 'LDFLAGS=-static ./configure && make'
+      - uses: actions/upload-artifact@v3
+        with:
+          name: tmux
+          path: tmux/tmux
+          if-no-files-found: error
+      - run: |
+          (
+            echo '- [Build #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})'
+            echo '- [Workflow file](https://github.com/${{ github.repository }}/blob/${{ github.sha }}/.github/workflows/autobuild.yml)'
+            echo
+            echo '## Files'
+            echo '```'
+            (cd tmux && file tmux)
+            echo '```'
+            echo
+            echo '## SHA256 Checksums'
+            echo '```'
+            (cd tmux && sha256sum tmux)
+            echo '```'
+          ) | tee release.md
+      - id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: run-${{ github.run_number }}
+          release_name: "Build #${{ github.run_number }}"
+          body_path: release.md
+          prerelease: false
+          draft: false
+      - uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: tmux/tmux
+          asset_name: tmux
+          asset_content_type: application/octet-stream
