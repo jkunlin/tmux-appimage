@@ -23,7 +23,8 @@ jobs:
       - run: |
           wget https://github.com/tmux/tmux/releases/download/3.3a/tmux-3.3a.tar.gz
           tar -zxf tmux-*.tar.gz
-          mv tmux-* tmux
+          mv tmux-3.3a tmux
+          cd tmux
           LDFLAGS=-static ./configure && make
       - uses: actions/upload-artifact@v3
         with:
